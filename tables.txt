@@ -1,0 +1,49 @@
+How to get articles for issue
+
+SELECT Articles.*, Authors.FirstName, Authors.SecondName
+FROM Articles
+INNER JOIN Authors ON Articles.Author = Authors.ID
+WHERE Issue = ".$Issue['ID']." AND Category = ".$Category['ID']."
+ORDER BY Picture DESC";
+
+
+# Articles
+# | ID          | bigint(20)   | NO   | PRI | NULL    | auto_increment |
+# | Title       | varchar(255) | NO   |     | NULL    |                |
+# | SubTitle    | tinytext     | NO   | MUL | NULL    |                |
+# | Description | text         | NO   |     | NULL    |                |
+# | Text        | text         | NO   | MUL | NULL    |                |
+# | Picture     | varchar(255) | YES  |     | NULL    |                |
+# | PicTitle    | varchar(255) | NO   |     | NULL    |                |
+# | Author      | int(11)      | NO   |     | NULL    |                |
+# | Date        | bigint(20)   | NO   |     | NULL    |                |
+# | Issue       | int(11)      | NO   |     | NULL    |                |
+# | Main        | tinyint(4)   | NO   |     | NULL    |                |
+# | Category    | tinyint(4)   | NO   |     | NULL    |                |
+# | SubCategory | tinyint(4)   | NO   |     | NULL    |                |
+# | WordsIndex  | text         | NO   | MUL | NULL    |                |
+# | Views       | int(11)      | NO   |     | 0       |                |
+
+# Authors
+# | ID         | int(11)      | NO   | PRI | NULL    | auto_increment |
+# | FirstName  | varchar(255) | NO   |     | NULL    |                |
+# | SecondName | varchar(255) | NO   |     | NULL    |                |
+# | Email      | varchar(255) | NO   |     | NULL    |                |
+# | Phone      | varchar(255) | NO   |     | NULL    |                |
+# | JobTitle   | varchar(255) | NO   |     | NULL    |                |
+# | Text       | text         | NO   |     | NULL    |                |
+# | Photo      | varchar(255) | NO   |     | NULL    |                |
+# | Show       | tinyint(4)   | NO   |     | 1       |                |
+# | Order      | int(11)      | NO   |     | NULL    |                |
+
+# Category
+# | ID    | tinyint(4)   | NO   | PRI | NULL    | auto_increment |
+# | Title | varchar(255) | NO   |     | NULL    |                |
+# | Order | int(11)      | NO   |     | 100     |                |
+
+# Issues
+# | ID       | int(11)      | NO   | PRI | NULL    | auto_increment |
+# | YearNum  | int(11)      | NO   |     | NULL    |                |
+# | TotalNum | int(11)      | NO   |     | NULL    |                |
+# | Date     | bigint(20)   | NO   |     | NULL    |                |
+# | Image    | varchar(255) | NO   |     | NULL    |                |
