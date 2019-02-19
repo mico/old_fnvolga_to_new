@@ -15,37 +15,38 @@ mysql> desc fs_article_rubric;
 | state | tinyint(4)       | NO   |     | NULL    |                |
 | order | int(10) unsigned | NO   |     | NULL    |                |
 +-------+------------------+------+-----+---------+----------------+
-mysql> desc fs_article;
-+-------------------+---------------------+------+-----+---------+----------------+
-| Field             | Type                | Null | Key | Default | Extra          |
-+-------------------+---------------------+------+-----+---------+----------------+
-| id                | int(10) unsigned    | NO   | PRI | NULL    | auto_increment |
-| title             | varchar(255)        | NO   |     | NULL    |                |
-| subtitle          | varchar(255)        | NO   |     | NULL    |                |
-| article_rubric_id | int(10) unsigned    | NO   |     | NULL    |                |
-| -author_id        | int(10) unsigned    | NO   |     | NULL    |                |
-| photo_album_id    | int(10) unsigned    | NO   |     | NULL    |                |
-| published         | datetime            | NO   |     | NULL    |                |
-| logo              | varchar(255)        | NO   |     | NULL    |                |
-| logo_caption      | varchar(255)        | NO   |     | NULL    |                |
-| logo_authorship   | varchar(255)        | NO   |     | NULL    |                |
-| views             | int(10) unsigned    | NO   |     | NULL    |                |
-| like              | int(10) unsigned    | NO   |     | NULL    |                |
-| dislike           | int(10) unsigned    | NO   |     | NULL    |                |
-| fulltext          | mediumtext          | NO   |     | NULL    |                |
-| introtext         | varchar(250)        | NO   |     | NULL    |                |
-| keywords          | varchar(255)        | NO   |     | NULL    |                |
-| comments_enabled  | tinyint(4)          | NO   |     | NULL    |                |
-| created           | datetime            | NO   |     | NULL    |                |
-| created_by        | int(10) unsigned    | NO   |     | NULL    |                |
-| modified          | datetime            | NO   |     | NULL    |                |
-| modified_by       | int(10) unsigned    | NO   |     | NULL    |                |
-| state             | tinyint(4) unsigned | NO   |     | NULL    |                |
-| rss               | tinyint(1)          | NO   | MUL | 0       |                |
-| rss_category      | varchar(100)        | NO   |     |         |                |
-| logo_share        | varchar(255)        | NO   |     |         |                |
-| new_material      | tinyint(1)          | NO   | MUL | 1       |                |
-+-------------------+---------------------+------+-----+---------+----------------+
+mysql> desc fs_newspaper_article;
++--------------------+---------------------+------+-----+---------+----------------+
+| Field              | Type                | Null | Key | Default | Extra          |
++--------------------+---------------------+------+-----+---------+----------------+
+| id                 | int(10) unsigned    | NO   | PRI | NULL    | auto_increment |
+| newspaper_issue_id | int(10) unsigned    | NO   |     | NULL    |                |
+| title              | varchar(255)        | NO   |     | NULL    |                |
+| subtitle           | varchar(255)        | NO   |     | NULL    |                |
+| article_rubric_id  | int(10) unsigned    | NO   |     | NULL    |                |
+| -author_id         | int(10) unsigned    | NO   |     | NULL    |                |
+| photo_album_id     | int(10) unsigned    | NO   |     | NULL    |                |
+| published          | datetime            | NO   |     | NULL    |                |
+| logo               | varchar(255)        | NO   |     | NULL    |                |
+| logo_caption       | varchar(255)        | NO   |     | NULL    |                |
+| logo_authorship    | varchar(255)        | NO   |     | NULL    |                |
+| views              | int(10) unsigned    | NO   |     | NULL    |                |
+| like               | int(10) unsigned    | NO   |     | NULL    |                |
+| dislike            | int(10) unsigned    | NO   |     | NULL    |                |
+| fulltext           | text                | NO   |     | NULL    |                |
+| introtext          | varchar(250)        | NO   |     | NULL    |                |
+| keywords           | varchar(255)        | NO   |     | NULL    |                |
+| comments_enabled   | tinyint(4)          | NO   |     | NULL    |                |
+| created            | datetime            | NO   |     | NULL    |                |
+| created_by         | int(10) unsigned    | NO   |     | NULL    |                |
+| modified           | datetime            | NO   |     | NULL    |                |
+| modified_by        | int(10) unsigned    | NO   |     | NULL    |                |
+| state              | tinyint(4) unsigned | NO   |     | NULL    |                |
+| new_material       | tinyint(1)          | NO   | MUL | 0       |                |
+| rss                | tinyint(1)          | NO   | MUL | 0       |                |
+| rss_category       | varchar(100)        | NO   |     |         |                |
+| logo_share         | varchar(255)        | NO   |     |         |                |
++--------------------+---------------------+------+-----+---------+----------------+
 
 
 mysql> desc fs_article_author;
@@ -108,6 +109,26 @@ fs_author
 # | ID    | tinyint(4)   | NO   | PRI | NULL    | auto_increment |
 # | Title | varchar(255) | NO   |     | NULL    |                |
 # | Order | int(11)      | NO   |     | 100     |                |
+
+mysql> desc Subcategory;
++-------+--------------+------+-----+---------+----------------+
+| Field | Type         | Null | Key | Default | Extra          |
++-------+--------------+------+-----+---------+----------------+
+| ID    | tinyint(4)   | NO   | PRI | NULL    | auto_increment |
+| Title | varchar(255) | NO   |     | NULL    |                |
+| Order | int(11)      | NO   |     | 100     |                |
++-------+--------------+------+-----+---------+----------------+
+
+
+mysql> desc fs_newspaper_article_rubric;
++-------+------------------+------+-----+---------+----------------+
+| Field | Type             | Null | Key | Default | Extra          |
++-------+------------------+------+-----+---------+----------------+
+| id    | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+| title | varchar(255)     | NO   |     | NULL    |                |
+| state | tinyint(4)       | NO   |     | NULL    |                |
+| order | int(10) unsigned | NO   |     | NULL    |                |
++-------+------------------+------+-----+---------+----------------+
 
 # Issues
 # | ID       | int(11)      | NO   | PRI | NULL    | auto_increment |
