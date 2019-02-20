@@ -1,4 +1,3 @@
-# В общем, статьи и выпуски газет с него надо присоединить к фн-волге и переформатировать:
 # - скопировать картинки с сайта в каталог фн-волги,
 
 require 'mysql2'
@@ -9,6 +8,8 @@ require 'CSV'
 @category_mapping = CSV.read('mapping/category.csv').to_h
 @subcategory_mapping = CSV.read('mapping/subcategory.csv').to_h
 @issue_mapping = {}
+
+@images_path = '/Users/mico/Downloads/public_html'
 
 article_migrate = {
   'Title': 'title',
@@ -147,7 +148,19 @@ def migrate_issue(id)
   last_id
 end
 
-@client_from.query('SELECT %s FROM Articles limit 2' %
+class String
+  def truncate(max = 10)
+    length > max ? "#{self[0...max]}..." : self
+  end
+end
+
+def create_insert(keys, values)
+  format("INSERT INTO fs_newspaper_article (`%<keys>s`) VALUES ('%<values>s')",
+         keys: keys.join('`, `'),
+         values: values.join("', '"))
+end
+
+@client_from.query('SELECT %s FROM Articles' %
                   article_migrate.keys.join(',')).each do |row|
   values = make_migration(article_migrate, row)
   values['state'] = 1
@@ -159,13 +172,9 @@ end
 
   values['newspaper_issue_id'] = migrate_issue(row['Issue']) || nil
 
-  @client_to.query("INSERT INTO fs_newspaper_article (`%s`) VALUES ('%s')" %
-                  [values.keys.join('`, `'), values.values.join("', '")])
+  puts create_insert(values.keys, values.values.map { |v| v.is_a?(String) && v.truncate || v })
+  @client_to.query(create_insert(values.keys, values.values))
   article_id = @client_to.last_id
-  puts "article_id: #{article_id}"
-  puts "author_id: #{author_id}"
-  puts "rubric_id: #{article_rubric_id}"
-  puts "issue_id: #{values['newspaper_issue_id']}"
 
   if author_id
     @client_to.query('INSERT INTO fs_newspaper_article_author (newspaper_article_id, author_id) VALUES (%d, %d)' %
