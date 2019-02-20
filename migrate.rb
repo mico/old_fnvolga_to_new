@@ -1,8 +1,7 @@
-# - скопировать картинки с сайта в каталог фн-волги,
-
 require 'mysql2'
 require 'byebug'
 require 'CSV'
+require 'yaml'
 
 @authors_mapping = CSV.read('mapping/authors.csv').to_h
 @category_mapping = CSV.read('mapping/category.csv').to_h
@@ -44,10 +43,12 @@ article_migrate = {
   'Image': 'logo'
 }
 
-@client_from = Mysql2::Client.new(host: '127.0.0.1', username: 'root',
-                                 database: 'old_fnvolga')
-@client_to = Mysql2::Client.new(host: '127.0.0.1', username: 'root',
-                               database: 'fn_volga')
+settings = YAML.load_file('settings.yml')
+
+@client_from = Mysql2::Client.new(host: settings['from']['host'], username: settings['from']['username'],
+                                  database: settings['from']['database'], password: settings['from']['password'])
+@client_to = Mysql2::Client.new(host: settings['to']['host'], username: settings['to']['username'],
+                                database: settings['to']['database'], password: settings['to']['password'])
 @dont_escape = [Time, Fixnum]
 # set names 'utf8';
 @client_to.query("SET NAMES 'UTF8'")
