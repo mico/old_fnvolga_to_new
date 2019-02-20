@@ -15,6 +15,7 @@ mysql> desc fs_article_rubric;
 | state | tinyint(4)       | NO   |     | NULL    |                |
 | order | int(10) unsigned | NO   |     | NULL    |                |
 +-------+------------------+------+-----+---------+----------------+
+
 mysql> desc fs_newspaper_article;
 +--------------------+---------------------+------+-----+---------+----------------+
 | Field              | Type                | Null | Key | Default | Extra          |
@@ -136,3 +137,20 @@ mysql> desc fs_newspaper_article_rubric;
 # | TotalNum | int(11)      | NO   |     | NULL    |                |
 # | Date     | bigint(20)   | NO   |     | NULL    |                |
 # | Image    | varchar(255) | NO   |     | NULL    |                |
+
+mysql> desc fs_newspaper_issue;
++--------------+------------------+------+-----+---------+----------------+
+| Field        | Type             | Null | Key | Default | Extra          |
++--------------+------------------+------+-----+---------+----------------+
+| id           | int(10) unsigned | NO   | PRI | NULL    | auto_increment |
+| published    | date             | NO   |     | NULL    |                |
+| logo         | varchar(255)     | NO   |     | NULL    |                |
+| number       | varchar(255)     | NO   |     | NULL    |                |
+| code         | text             | NO   |     | NULL    |                |
+| views        | int(10) unsigned | NO   |     | NULL    |                |
+| like         | int(10) unsigned | NO   |     | NULL    |                |
+| dislike      | int(10) unsigned | NO   |     | NULL    |                |
+| state        | tinyint(4)       | NO   |     | NULL    |                |
+| rss          | tinyint(1)       | NO   | MUL | 0       |                |
+| rss_category | varchar(100)     | NO   |     |         |                |
++--------------+------------------+------+-----+---------+----------------+

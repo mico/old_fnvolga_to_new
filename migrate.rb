@@ -1,8 +1,5 @@
 # В общем, статьи и выпуски газет с него надо присоединить к фн-волге и переформатировать:
 # - скопировать картинки с сайта в каталог фн-волги,
-# - поменять в таблицах ссылки на них
-# Выпуски - 208 штук
-# И еще сравнивать порядка 50 рубрик, и авторов десятка два. Но это я вручную могу сделать и создать недостающих
 
 require 'mysql2'
 require 'byebug'
@@ -11,6 +8,7 @@ require 'CSV'
 @authors_mapping = CSV.read('mapping/authors.csv').to_h
 @category_mapping = CSV.read('mapping/category.csv').to_h
 @subcategory_mapping = CSV.read('mapping/subcategory.csv').to_h
+@issue_mapping = {}
 
 article_migrate = {
   'Title': 'title',
@@ -22,18 +20,27 @@ article_migrate = {
   'Picture': 'logo',
   'PicTitle': 'logo_caption',
   'Category': 'article_rubric_id',
-  'Subcategory': 'article_rubric_id' }
+  'Subcategory': 'article_rubric_id',
+  'Issue': 'newspaper_issue_id'
+}
 
 @author_migrate = {
   'FirstName': 'name',
   'SecondName': 'name2',
   'JobTitle': 'occupation',
   'Text': 'description',
-  'Photo': 'b_image',
+  'Photo': 'b_image'
 }
 
 @category_migrate = {
   'Title': 'title'
+}
+
+@issue_migrate = {
+  'YearNum': 'number',
+  'TotalNum': 'number',
+  'FROM_UNIXTIME(Date)': 'published',
+  'Image': 'logo'
 }
 
 @client_from = Mysql2::Client.new(host: '127.0.0.1', username: 'root',
@@ -66,7 +73,7 @@ def migrate_author(id)
   res = @client_from.query('SELECT %s FROM Authors WHERE id = %d' %
                            [@author_migrate.keys.join(','), id])
   return unless res.any?
-  res.first.tap do |row|
+  row = res.first
   res = @client_to.query("SELECT id FROM fs_author WHERE name = '%s' AND name2 = '%s'" %
                           [row['FirstName'], row['SecondName']])
 
@@ -79,8 +86,7 @@ def migrate_author(id)
       [@author_migrate.values.join('`, `'), values.values.join("', '")]
   puts q
   @client_to.query(q)
-  return @client_to.last_id
-  end
+  @authors_mapping[id.to_s] = @client_to.last_id
 end
 
 def migrate_rubric(id, subcategory_id)
@@ -98,12 +104,47 @@ def migrate_rubric(id, subcategory_id)
   values = {}
   values['state'] = 1
   @category_migrate.map do |k, v|
-    values[v] = row[k.to_s]
+    values[v] = res.first[k.to_s]
   end
+
   q = "INSERT INTO fs_newspaper_article_rubric (`%s`) VALUES ('%s')" %
-      [@category_migrate.values.join('`, `'), values.values.join("', '")]
+      [(@category_migrate.values.uniq + ['state']).join('`, `'), values.values.join("', '")]
+  puts q
+  @client_to.query(q)
+  # save created category
+  @category_mapping[id] = @client_to.last_id
+end
+
+def migration(mapping, migrate_map, table, table_to, id, add_state = false)
+  return mapping[id] if mapping.key?(id)
+  res = @client_from.query(
+    format('SELECT %<keys>s FROM `%<table>s` WHERE id = %<id>d',
+           keys: migrate_map.keys.join(','),
+           table: table,
+           id: id)
+  )
+  return unless res.any?
+
+  values = migrate_map.map { |k, v| [v.to_sym, res.first[k.to_s]] }.to_h
+  values['state'] = 1 if add_state
+  values.merge!(yield(res)) if block_given?
+
+  q = format("INSERT INTO %<table_to>s (`%<keys>s`) VALUES ('%<values>s')",
+             table_to: table_to,
+             keys: values.keys.join('`, `'),
+             values: values.values.join("', '"))
+  puts q
   @client_to.query(q)
   @client_to.last_id
+end
+
+def migrate_issue(id)
+  last_id = migration(@issue_mapping, @issue_migrate,
+                      'Issues', 'fs_newspaper_issue', id, true) do |res|
+    { 'number': "#{res.first['YearNum']} (#{res.first['TotalNum']})" }
+  end
+  @issue_mapping[id] = last_id
+  last_id
 end
 
 @client_from.query('SELECT %s FROM Articles limit 2' %
@@ -116,12 +157,15 @@ end
   article_rubric_id = migrate_rubric(row['Category'], row['Subcategory'])
   values['article_rubric_id'] = article_rubric_id if article_rubric_id
 
+  values['newspaper_issue_id'] = migrate_issue(row['Issue']) || nil
+
   @client_to.query("INSERT INTO fs_newspaper_article (`%s`) VALUES ('%s')" %
                   [values.keys.join('`, `'), values.values.join("', '")])
   article_id = @client_to.last_id
   puts "article_id: #{article_id}"
   puts "author_id: #{author_id}"
   puts "rubric_id: #{article_rubric_id}"
+  puts "issue_id: #{values['newspaper_issue_id']}"
 
   if author_id
     @client_to.query('INSERT INTO fs_newspaper_article_author (newspaper_article_id, author_id) VALUES (%d, %d)' %
