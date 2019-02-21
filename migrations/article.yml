@@ -1,15 +1,15 @@
-  database:
-    Title: title
-    SubTitle': subtitle
-    Description: introtext
-    Text: fulltext
-    'FROM_UNIXTIME(Date)':
-      - published
-      - created
-      - modified
-    Author: author_id
-    Picture: logo
-    PicTitle: logo_caption
-    Category: article_rubric_id
-    Subcategory: article_rubric_id
-    Issue: newspaper_issue_id
+fields:
+  Title: title
+  SubTitle: subtitle
+  Description: introtext
+  Text: fulltext
+  'FROM_UNIXTIME(Date)':
+    - published
+    - created
+    - modified
+  Author: author_id
+  Picture: logo
+  PicTitle: logo_caption
+  Category: article_rubric_id
+  Subcategory: article_rubric_id
+  Issue: newspaper_issue_id

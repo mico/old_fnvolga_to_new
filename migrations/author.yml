@@ -1,6 +1,11 @@
-  database:
-    FirstName: name
-    SecondName: name2
-    JobTitle: occupation
-    Text: description
-    Photo: b_image
+fields:
+  FirstName: name
+  SecondName: name2
+  JobTitle: occupation
+  Text: description
+  Photo: b_image
+from: Authors
+to: fs_author
+search_mapping:
+  FirstName: name
+  SecondName: name2

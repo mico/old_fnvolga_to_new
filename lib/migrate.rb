@@ -40,17 +40,19 @@ def test_env?
   @settings['environment'] == 'test'
 end
 
+def escape(string)
+  @dont_escape.include?(string.class) && string || @client_from.escape(string)
+end
+
 def make_migration(mapping, row)
   values = {}
   mapping.map do |k, v|
     if v.is_a?(Array)
       v.each do |r|
-        values[r] = @dont_escape.include?(row[k.to_s].class) && row[k.to_s] ||
-                    @client_from.escape(row[k.to_s])
+        values[r] = escape(row[k.to_s])
       end
     else
-      values[v] = @dont_escape.include?(row[k.to_s].class) && row[k.to_s] ||
-                  @client_from.escape(row[k.to_s])
+      values[v] = escape(row[k.to_s])
     end
   end
   values
@@ -63,71 +65,81 @@ def migrate_rubric(id, subcategory_id)
   return @category_mapping[id.to_s].to_i if @category_mapping.key?(id.to_s)
   if subcategory_id.empty?
     res = @client_from.query('SELECT %s FROM Category WHERE id = %d' %
-                             [@migrations['category'].keys.join(','), id])
+                             [@migrations['category']['fields'].keys.join(','), id])
   else
     res = @client_from.query('SELECT %s FROM Subcategory WHERE id = %d' %
-                             [@migrations['category'].keys.join(','), subcategory_id])
+                             [@migrations['category']['fields'].keys.join(','), subcategory_id])
   end
   return unless res.any?
   values = {}
   values['state'] = 1
-  @migrations['category'].map do |k, v|
+  @migrations['category']['fields'].map do |k, v|
     values[v] = res.first[k.to_s]
   end
 
   q = "INSERT INTO fs_newspaper_article_rubric (`%s`) VALUES ('%s')" %
-      [(@migrations['category'].values.uniq + ['state']).join('`, `'), values.values.join("', '")]
+      [(@migrations['category']['fields'].values.uniq + ['state']).join('`, `'), values.values.join("', '")]
   puts q
   @client_to.query(q)
   # save created category
   @category_mapping[id] = @client_to.last_id
 end
 
-def migration(mapping, migrate_map, table, table_to, id, search_mapping = nil)
+def migration(mapping, migrate_map, id)
   return mapping[id] if mapping.key?(id)
+  fields = migrate_map['fields']
   res = @client_from.query(
     format('SELECT %<keys>s FROM `%<table>s` WHERE id = %<id>d',
-           keys: migrate_map.keys.join(','),
-           table: table,
+           keys: fields.keys.join(','),
+           table: migrate_map['from'],
            id: id)
   )
   return unless res.any?
 
+  row_from = res.first
+  search_mapping = migrate_map['search_mapping']
+  migrate_to = migrate_map['to']
+
   if search_mapping
     query = format('SELECT id FROM %<table_to>s WHERE %<condition>s',
-                   table_to: table_to,
-                   condition: search_mapping.to_a.map{|k, v| "#{v} = '#{res.first[k.to_s]}'"}.join(' AND '))
+                   table_to: migrate_to,
+                   condition: search_mapping.to_a.map{|k, v| "#{v} = '#{row_from[k.to_s]}'"}.join(' AND '))
     result = @client_to.query(query)
     return result.first['id'] if result.any?
   end
 
-  values = migrate_map.map { |key, value| [value.to_sym, res.first[key.to_s]] }.to_h
-  values.merge!(yield(res)) if block_given?
+  values = fields.map { |key, value| [value.to_sym, row_from[key.to_s]] }.to_h
+  migrate_map['custom_fields'].each do |field, code|
+    values[field.to_sym] = code.is_a?(String) && code.gsub(/\#\{(.*?)\}/) { eval($1) } || code
+  end
 
   query = format("INSERT INTO %<table_to>s (`%<keys>s`) VALUES ('%<values>s')",
-                 table_to: table_to,
+                 table_to: migrate_to,
                  keys: values.keys.join('`, `'),
                  values: values.values.join("', '"))
   puts query
   @client_to.query(query)
-  @client_to.last_id
+  last_id = @client_to.last_id
+  updates = migrate_map['update_after_insert'].map do |field, code|
+    "`#{field}` = '#{escape(code.gsub(/\#\{(.*?)\}/) { eval($1) })}'"
+  end.join(', ')
+  query = format("UPDATE %<table_to>s SET %<updates>s WHERE id = %<id>d",
+    table_to: migrate_to,
+    updates: updates,
+    id: last_id)
+  puts query
+  @client_to.query(query)
+  last_id
 end
 
 def migrate_issue(id)
-  last_id = migration(@issue_mapping, @migrations['issue'],
-                      'Issues', 'fs_newspaper_issue', id) do |res|
-    row = res.first
-    { 'number': "#{row['YearNum']} (#{row['TotalNum']})",
-      'state': 1 }
-  end
+  last_id = migration(@issue_mapping, @migrations['issue'], id)
   @issue_mapping[id] = last_id
   last_id
 end
 
 def migrate_author(id)
-  last_id = migration(@authors_mapping, @migrations['author'],
-                      'Authors', 'fs_author', id,
-                      FirstName: 'name', SecondName: 'name2')
+  last_id = migration(@authors_mapping, @migrations['author'], id)
   @authors_mapping[id.to_s] = last_id
   last_id
 end
@@ -145,9 +157,11 @@ def create_insert(keys, values)
 end
 
 def run
-  @client_from.query(('SELECT %s FROM Articles' + (test_env? && ' limit 10' || '')) %
-                    @migrations['article'].keys.join(',')).each do |row|
-    values = make_migration(@migrations['article'], row)
+  query = ('SELECT %s FROM Articles' + (test_env? && ' limit 10' || '')) %
+           @migrations['article']['fields'].keys.join(', ')
+  puts query
+  @client_from.query(query).each do |row|
+    values = make_migration(@migrations['article']['fields'], row)
     values['state'] = 1
     author_id = migrate_author(row['Author'])
     values.delete('author_id')

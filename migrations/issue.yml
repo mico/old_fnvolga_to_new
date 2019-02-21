@@ -1,11 +1,16 @@
-  database:
-    YearNum: number
-    TotalNum: number
-    'FROM_UNIXTIME(Date)': published
-    Image: logo
-  custom_fields:
-    code: >
-      '<p align="left" style="margin-bottom: 10px;"><span style="font-size: small;">
-      PDF-версия данного выпуска отсутствует.
-      Вы можете перейти в <a href="/newspaperArticle/index/issueId/#{id}">
-      список статей</a>.</p>'
+fields:
+  YearNum: number
+  TotalNum: number
+  'FROM_UNIXTIME(Date)': published
+  Image: logo
+custom_fields:
+  number: "#{row_from['YearNum']} (#{row_from['TotalNum']})"
+  state: 1
+from: Issues
+to: fs_newspaper_issue
+update_after_insert:
+  code: >
+    <p align="left" style="margin-bottom: 10px;"><span style="font-size: small;">
+    PDF-версия данного выпуска отсутствует.
+    Вы можете перейти в <a href="/newspaperArticle/index/issueId/#{last_id}">
+    список статей</a>.</p>
