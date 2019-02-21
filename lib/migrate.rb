@@ -3,10 +3,11 @@ require 'byebug'
 require 'CSV'
 require 'yaml'
 
-@authors_mapping = CSV.read('mapping/authors.csv').to_h
-@category_mapping = CSV.read('mapping/category.csv').to_h
-@subcategory_mapping = CSV.read('mapping/subcategory.csv').to_h
-@issue_mapping = {}
+@mappings = {'issue': {}}
+Dir['mapping/*csv'].each do |mapping|
+  name = migration.sub('.csv', '').sub('mapping/', '')
+  @mappings[name] = CSV.read(mapping).to_h
+end
 
 @migrations = {}
 
@@ -18,8 +19,6 @@ require 'yaml'
 # Articles
 # Там в поле Picture прописан адрес картинки. Тебе из него надо удалить images/
 # Оставить только имя файла
-
-@images_path = '/Users/mico/Downloads/public_html'
 
 Dir['migrations/*yml'].each do |migration|
   name = migration.sub('.yml', '').sub('migrations/', '')
@@ -58,33 +57,6 @@ def make_migration(mapping, row)
   values
 end
 
-
-def migrate_rubric(id, subcategory_id)
-  # use subcategory if available
-  return @subcategory_mapping[subcategory_id.to_s].to_i if @subcategory_mapping.key?(subcategory_id.to_s)
-  return @category_mapping[id.to_s].to_i if @category_mapping.key?(id.to_s)
-  if subcategory_id.empty?
-    res = @client_from.query('SELECT %s FROM Category WHERE id = %d' %
-                             [@migrations['category']['fields'].keys.join(','), id])
-  else
-    res = @client_from.query('SELECT %s FROM Subcategory WHERE id = %d' %
-                             [@migrations['category']['fields'].keys.join(','), subcategory_id])
-  end
-  return unless res.any?
-  values = {}
-  values['state'] = 1
-  @migrations['category']['fields'].map do |k, v|
-    values[v] = res.first[k.to_s]
-  end
-
-  q = "INSERT INTO fs_newspaper_article_rubric (`%s`) VALUES ('%s')" %
-      [(@migrations['category']['fields'].values.uniq + ['state']).join('`, `'), values.values.join("', '")]
-  puts q
-  @client_to.query(q)
-  # save created category
-  @category_mapping[id] = @client_to.last_id
-end
-
 def migration(mapping, migrate_map, id)
   return mapping[id] if mapping.key?(id)
   fields = migrate_map['fields']
@@ -120,27 +92,24 @@ def migration(mapping, migrate_map, id)
   puts query
   @client_to.query(query)
   last_id = @client_to.last_id
-  updates = migrate_map['update_after_insert'].map do |field, code|
-    "`#{field}` = '#{escape(code.gsub(/\#\{(.*?)\}/) { eval($1) })}'"
-  end.join(', ')
-  query = format("UPDATE %<table_to>s SET %<updates>s WHERE id = %<id>d",
-    table_to: migrate_to,
-    updates: updates,
-    id: last_id)
-  puts query
-  @client_to.query(query)
+  update_after_insert = migrate_map['update_after_insert']
+  if update_after_insert
+    updates = update_after_insert.map do |field, code|
+      "`#{field}` = '#{escape(code.gsub(/\#\{(.*?)\}/) { eval($1) })}'"
+    end.join(', ')
+    query = format("UPDATE %<table_to>s SET %<updates>s WHERE id = %<id>d",
+      table_to: migrate_to,
+      updates: updates,
+      id: last_id)
+    puts query
+    @client_to.query(query)
+  end
   last_id
 end
 
-def migrate_issue(id)
-  last_id = migration(@issue_mapping, @migrations['issue'], id)
-  @issue_mapping[id] = last_id
-  last_id
-end
-
-def migrate_author(id)
-  last_id = migration(@authors_mapping, @migrations['author'], id)
-  @authors_mapping[id.to_s] = last_id
+def migrate_entity(entity, id)
+  last_id = migration(@mappings[entity], @migrations[entity], id)
+  @mappings[entity][id] = last_id
   last_id
 end
 
@@ -156,28 +125,62 @@ def create_insert(keys, values)
          values: values.join("', '"))
 end
 
+def manytomany_relations
+  relations.select do |_, params|
+    params['type'] == 'manytomany'
+  end
+end
+
 def run
+  fields = @migrations['article']['fields']
+  # TODO: add manytomany relations to fields
+  # if relations.has_manytomany?
+  #   fields << relations.manytomany.fields
+  fields += manytomany_relations.map { |relation, _| relation }
   query = ('SELECT %s FROM Articles' + (test_env? && ' limit 10' || '')) %
-           @migrations['article']['fields'].keys.join(', ')
+           fields.keys.join(', ')
   puts query
   @client_from.query(query).each do |row|
-    values = make_migration(@migrations['article']['fields'], row)
+    values = make_migration(fields, row)
     values['state'] = 1
-    author_id = migrate_author(row['Author'])
-    values.delete('author_id')
 
-    article_rubric_id = migrate_rubric(row['Category'], row['Subcategory'])
+    # rubric
+    if row['Subcategory']
+      article_rubric_id = migrate_entity('subcategory', row['Subcategory'])
+    else
+      article_rubric_id = migrate_entity('category', row['Category'])
+    end
     values['article_rubric_id'] = article_rubric_id if article_rubric_id
 
-    values['newspaper_issue_id'] = migrate_issue(row['Issue']) || nil
+    relations = @migrations['article']['relations']
+    if relations
+      relations.each do |relation, params|
+        next unless params['type'] == 'onetomany'
+        values[fields[relation]] = migrate_entity(relation.downcase, row[relation])
+      end
+    end
 
     puts create_insert(values.keys, values.values.map { |v| v.is_a?(String) && v.truncate || v })
     @client_to.query(create_insert(values.keys, values.values))
-    article_id = @client_to.last_id
 
-    if author_id
-      @client_to.query('INSERT INTO fs_newspaper_article_author (newspaper_article_id, author_id) VALUES (%d, %d)' %
-                      [article_id, author_id])
+    last_id = @client_to.last_id
+
+    if relations
+      relations.each do |relation, params|
+        next unless params['type'] == 'manytomany'
+        # manytomany
+        entity_id = migrate_entity(relation.downcase, row[relation])
+        if entity_id
+          @client_to.query(
+            format('INSERT INTO %<table>s (%<foreign_id_name>s, %<primary_id_name>s) VALUES (%<foreign_id>d, %<primary_id>d)',
+                  table: params['table'],
+                  foreign_id_name: params['foreign_id'],
+                  primary_id_name: params['primary_id'],
+                  foreign_id: last_id,
+                  primary_id: entity_id)
+          )
+        end
+      end
     end
   end
 end

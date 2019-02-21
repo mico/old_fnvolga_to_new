@@ -7,9 +7,24 @@ fields:
     - published
     - created
     - modified
-  Author: author_id
   Picture: logo
   PicTitle: logo_caption
-  Category: article_rubric_id
   Subcategory: article_rubric_id
+  Category: article_rubric_id
   Issue: newspaper_issue_id
+custom_fields:
+  state: 1
+from: Articles
+to: fs_newspaper_article
+relations:
+  Issue:
+    type: onetomany
+  Subcategory:
+    type: onetomany
+  Category:
+    type: onetomany
+  Author:
+    type: manytomany
+    table: fs_newspaper_article_author
+    foreign_id: newspaper_article_id
+    primary_key: author_id

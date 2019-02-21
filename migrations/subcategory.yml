@@ -2,5 +2,5 @@ fields:
   Title: title
 custom_fields:
   state: 1
-from: Category
+from: SubCategory
 to: fs_newspaper_article_rubric
