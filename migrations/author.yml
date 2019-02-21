@@ -1,0 +1,6 @@
+  database:
+    FirstName: name
+    SecondName: name2
+    JobTitle: occupation
+    Text: description
+    Photo: b_image

@@ -8,40 +8,23 @@ require 'yaml'
 @subcategory_mapping = CSV.read('mapping/subcategory.csv').to_h
 @issue_mapping = {}
 
+@migrations = {}
+
+# Issues
+# Я обложки сделал для выпусков, могу их загрузить в стандартный каталог для обложек к выпускам -  /htdocs/f/i/newspaper_issue/logo
+# Имя файла, как я тебе говорил, сделаю по маске [TotalNum]_[YearNum].jpg
+# то что, есть в Image - удали
+
+# Articles
+# Там в поле Picture прописан адрес картинки. Тебе из него надо удалить images/
+# Оставить только имя файла
+
 @images_path = '/Users/mico/Downloads/public_html'
 
-@article_migrate = {
-  'Title': 'title',
-  'SubTitle': 'subtitle',
-  'Description': 'introtext',
-  'Text': 'fulltext',
-  'FROM_UNIXTIME(Date)': %w[published created modified],
-  'Author': 'author_id',
-  'Picture': 'logo',
-  'PicTitle': 'logo_caption',
-  'Category': 'article_rubric_id',
-  'Subcategory': 'article_rubric_id',
-  'Issue': 'newspaper_issue_id'
-}
-
-@author_migrate = {
-  'FirstName': 'name',
-  'SecondName': 'name2',
-  'JobTitle': 'occupation',
-  'Text': 'description',
-  'Photo': 'b_image'
-}
-
-@category_migrate = {
-  'Title': 'title'
-}
-
-@issue_migrate = {
-  'YearNum': 'number',
-  'TotalNum': 'number',
-  'FROM_UNIXTIME(Date)': 'published',
-  'Image': 'logo'
-}
+Dir['migrations/*yml'].each do |migration|
+  name = migration.sub('.yml', '').sub('migrations/', '')
+  @migrations[name] = YAML.load_file(migration)
+end
 
 @settings = YAML.load_file('settings.yml')
 
@@ -73,26 +56,6 @@ def make_migration(mapping, row)
   values
 end
 
-def migrate_author(id)
-  return @authors_mapping[id.to_s].to_i if @authors_mapping.key?(id.to_s)
-  res = @client_from.query('SELECT %s FROM Authors WHERE id = %d' %
-                           [@author_migrate.keys.join(','), id])
-  return unless res.any?
-  row = res.first
-  res = @client_to.query("SELECT id FROM fs_author WHERE name = '%s' AND name2 = '%s'" %
-                          [row['FirstName'], row['SecondName']])
-
-  return res.first['id'] if res.any?
-  values = {}
-  @author_migrate.map do |k, v|
-    values[v] = row[k.to_s]
-  end
-  q = "INSERT INTO fs_author (`%s`) VALUES ('%s')" %
-      [@author_migrate.values.join('`, `'), values.values.join("', '")]
-  puts q
-  @client_to.query(q)
-  @authors_mapping[id.to_s] = @client_to.last_id
-end
 
 def migrate_rubric(id, subcategory_id)
   # use subcategory if available
@@ -100,27 +63,27 @@ def migrate_rubric(id, subcategory_id)
   return @category_mapping[id.to_s].to_i if @category_mapping.key?(id.to_s)
   if subcategory_id.empty?
     res = @client_from.query('SELECT %s FROM Category WHERE id = %d' %
-                             [@category_migrate.keys.join(','), id])
+                             [@migrations['category'].keys.join(','), id])
   else
     res = @client_from.query('SELECT %s FROM Subcategory WHERE id = %d' %
-                             [@category_migrate.keys.join(','), subcategory_id])
+                             [@migrations['category'].keys.join(','), subcategory_id])
   end
   return unless res.any?
   values = {}
   values['state'] = 1
-  @category_migrate.map do |k, v|
+  @migrations['category'].map do |k, v|
     values[v] = res.first[k.to_s]
   end
 
   q = "INSERT INTO fs_newspaper_article_rubric (`%s`) VALUES ('%s')" %
-      [(@category_migrate.values.uniq + ['state']).join('`, `'), values.values.join("', '")]
+      [(@migrations['category'].values.uniq + ['state']).join('`, `'), values.values.join("', '")]
   puts q
   @client_to.query(q)
   # save created category
   @category_mapping[id] = @client_to.last_id
 end
 
-def migration(mapping, migrate_map, table, table_to, id, add_state = false)
+def migration(mapping, migrate_map, table, table_to, id, search_mapping = nil)
   return mapping[id] if mapping.key?(id)
   res = @client_from.query(
     format('SELECT %<keys>s FROM `%<table>s` WHERE id = %<id>d',
@@ -130,25 +93,42 @@ def migration(mapping, migrate_map, table, table_to, id, add_state = false)
   )
   return unless res.any?
 
-  values = migrate_map.map { |k, v| [v.to_sym, res.first[k.to_s]] }.to_h
-  values['state'] = 1 if add_state
+  if search_mapping
+    query = format('SELECT id FROM %<table_to>s WHERE %<condition>s',
+                   table_to: table_to,
+                   condition: search_mapping.to_a.map{|k, v| "#{v} = '#{res.first[k.to_s]}'"}.join(' AND '))
+    result = @client_to.query(query)
+    return result.first['id'] if result.any?
+  end
+
+  values = migrate_map.map { |key, value| [value.to_sym, res.first[key.to_s]] }.to_h
   values.merge!(yield(res)) if block_given?
 
-  q = format("INSERT INTO %<table_to>s (`%<keys>s`) VALUES ('%<values>s')",
-             table_to: table_to,
-             keys: values.keys.join('`, `'),
-             values: values.values.join("', '"))
-  puts q
-  @client_to.query(q)
+  query = format("INSERT INTO %<table_to>s (`%<keys>s`) VALUES ('%<values>s')",
+                 table_to: table_to,
+                 keys: values.keys.join('`, `'),
+                 values: values.values.join("', '"))
+  puts query
+  @client_to.query(query)
   @client_to.last_id
 end
 
 def migrate_issue(id)
-  last_id = migration(@issue_mapping, @issue_migrate,
-                      'Issues', 'fs_newspaper_issue', id, true) do |res|
-    { 'number': "#{res.first['YearNum']} (#{res.first['TotalNum']})" }
+  last_id = migration(@issue_mapping, @migrations['issue'],
+                      'Issues', 'fs_newspaper_issue', id) do |res|
+    row = res.first
+    { 'number': "#{row['YearNum']} (#{row['TotalNum']})",
+      'state': 1 }
   end
   @issue_mapping[id] = last_id
+  last_id
+end
+
+def migrate_author(id)
+  last_id = migration(@authors_mapping, @migrations['author'],
+                      'Authors', 'fs_author', id,
+                      FirstName: 'name', SecondName: 'name2')
+  @authors_mapping[id.to_s] = last_id
   last_id
 end
 
@@ -166,8 +146,8 @@ end
 
 def run
   @client_from.query(('SELECT %s FROM Articles' + (test_env? && ' limit 10' || '')) %
-                    @article_migrate.keys.join(',')).each do |row|
-    values = make_migration(@article_migrate, row)
+                    @migrations['article'].keys.join(',')).each do |row|
+    values = make_migration(@migrations['article'], row)
     values['state'] = 1
     author_id = migrate_author(row['Author'])
     values.delete('author_id')
