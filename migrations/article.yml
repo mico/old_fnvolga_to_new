@@ -14,6 +14,7 @@ fields:
   Issue: newspaper_issue_id
 custom_fields:
   state: 1
+  logo: "#{row_from['Picture'].sub('images/', '')}"
 from: Articles
 to: fs_newspaper_article
 relations:

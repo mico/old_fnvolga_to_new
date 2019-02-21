@@ -11,15 +11,6 @@ end
 
 @migrations = {}
 
-# Issues
-# Я обложки сделал для выпусков, могу их загрузить в стандартный каталог для обложек к выпускам -  /htdocs/f/i/newspaper_issue/logo
-# Имя файла, как я тебе говорил, сделаю по маске [TotalNum]_[YearNum].jpg
-# то что, есть в Image - удали
-
-# Articles
-# Там в поле Picture прописан адрес картинки. Тебе из него надо удалить images/
-# Оставить только имя файла
-
 Dir['migrations/*yml'].each do |migration|
   name = migration.sub('.yml', '').sub('migrations/', '')
   @migrations[name] = YAML.load_file(migration)
@@ -43,32 +34,7 @@ def escape(string)
   @dont_escape.include?(string.class) && string || @client_from.escape(string)
 end
 
-def make_migration(mapping, row)
-  values = {}
-  mapping.map do |k, v|
-    if v.is_a?(Array)
-      v.each do |r|
-        values[r] = escape(row[k.to_s])
-      end
-    else
-      values[v] = escape(row[k.to_s])
-    end
-  end
-  values
-end
-
-def migration(mapping, migrate_map, id)
-  return mapping[id] if mapping.key?(id)
-  fields = migrate_map['fields']
-  res = @client_from.query(
-    format('SELECT %<keys>s FROM `%<table>s` WHERE id = %<id>d',
-           keys: fields.keys.join(','),
-           table: migrate_map['from'],
-           id: id)
-  )
-  return unless res.any?
-
-  row_from = res.first
+def migration_row(mapping, migrate_map, row_from)
   search_mapping = migrate_map['search_mapping']
   migrate_to = migrate_map['to']
 
@@ -85,6 +51,20 @@ def migration(mapping, migrate_map, id)
     values[field.to_sym] = code.is_a?(String) && code.gsub(/\#\{(.*?)\}/) { eval($1) } || code
   end
 
+  relations = migrate_map[entity]['relations']
+
+  # one to many relations
+  if relations
+    relations.each do |relation, params|
+      next unless params['type'] == 'onetomany'
+      relation_id = row[relation]
+      next unless relation_id
+      # skip already found relations (if duplicates in migration description)
+      next if values.key?(fields[relation])
+      values[fields[relation]] = migrate_entity(relation.downcase, relation_id)
+    end
+  end
+
   query = format("INSERT INTO %<table_to>s (`%<keys>s`) VALUES ('%<values>s')",
                  table_to: migrate_to,
                  keys: values.keys.join('`, `'),
@@ -92,6 +72,8 @@ def migration(mapping, migrate_map, id)
   puts query
   @client_to.query(query)
   last_id = @client_to.last_id
+
+  # update after insert
   update_after_insert = migrate_map['update_after_insert']
   if update_after_insert
     updates = update_after_insert.map do |field, code|
@@ -104,7 +86,37 @@ def migration(mapping, migrate_map, id)
     puts query
     @client_to.query(query)
   end
+
+  # many to many relations
+  manytomany_relations.each do |relation, params|
+    # manytomany
+    entity_id = migrate_entity(relation.downcase, row[relation])
+    next unless entity_id
+    @client_to.query(
+      format('INSERT INTO %<table>s (%<foreign_id_name>s, %<primary_id_name>s) VALUES (%<foreign_id>d, %<primary_id>d)',
+              table: params['table'],
+              foreign_id_name: params['foreign_id'],
+              primary_id_name: params['primary_id'],
+              foreign_id: last_id,
+              primary_id: entity_id)
+    )
+  end
+
   last_id
+end
+
+def migration(mapping, migrate_map, id)
+  return mapping[id] if mapping.key?(id)
+  fields = get_fields(@migration[entity])
+  res = @client_from.query(
+    format('SELECT %<keys>s FROM `%<table>s` WHERE id = %<id>d',
+           keys: fields.keys.join(','),
+           table: migrate_map['from'],
+           id: id)
+  )
+  return unless res.any?
+
+  migration_row(mapping, migrate_map, res.first)
 end
 
 def migrate_entity(entity, id)
@@ -119,68 +131,29 @@ class String
   end
 end
 
-def create_insert(keys, values)
-  format("INSERT INTO fs_newspaper_article (`%<keys>s`) VALUES ('%<values>s')",
-         keys: keys.join('`, `'),
-         values: values.join("', '"))
-end
-
-def manytomany_relations
+def manytomany_relations(relations)
   relations.select do |_, params|
     params['type'] == 'manytomany'
   end
 end
 
-def run
-  fields = @migrations['article']['fields']
+def get_fields(migrations)
+  fields = migrations[entity]['fields']
   # TODO: add manytomany relations to fields
   # if relations.has_manytomany?
   #   fields << relations.manytomany.fields
-  fields += manytomany_relations.map { |relation, _| relation }
-  query = ('SELECT %s FROM Articles' + (test_env? && ' limit 10' || '')) %
-           fields.keys.join(', ')
+  relations = migrations[entity]['relations']
+  fields += manytomany_relations(relations).map { |relation, _| relation }
+  fields
+end
+
+def run(entity = 'article')
+  migrations = @migrations[entity]
+  query = format(('SELECT %<fields>s FROM %<table>s' + (test_env? && ' limit 10' || '')),
+                 fields: get_fields(migrations).keys.join(', '),
+                 table: migrations['from'])
   puts query
   @client_from.query(query).each do |row|
-    values = make_migration(fields, row)
-    values['state'] = 1
-
-    # rubric
-    if row['Subcategory']
-      article_rubric_id = migrate_entity('subcategory', row['Subcategory'])
-    else
-      article_rubric_id = migrate_entity('category', row['Category'])
-    end
-    values['article_rubric_id'] = article_rubric_id if article_rubric_id
-
-    relations = @migrations['article']['relations']
-    if relations
-      relations.each do |relation, params|
-        next unless params['type'] == 'onetomany'
-        values[fields[relation]] = migrate_entity(relation.downcase, row[relation])
-      end
-    end
-
-    puts create_insert(values.keys, values.values.map { |v| v.is_a?(String) && v.truncate || v })
-    @client_to.query(create_insert(values.keys, values.values))
-
-    last_id = @client_to.last_id
-
-    if relations
-      relations.each do |relation, params|
-        next unless params['type'] == 'manytomany'
-        # manytomany
-        entity_id = migrate_entity(relation.downcase, row[relation])
-        if entity_id
-          @client_to.query(
-            format('INSERT INTO %<table>s (%<foreign_id_name>s, %<primary_id_name>s) VALUES (%<foreign_id>d, %<primary_id>d)',
-                  table: params['table'],
-                  foreign_id_name: params['foreign_id'],
-                  primary_id_name: params['primary_id'],
-                  foreign_id: last_id,
-                  primary_id: entity_id)
-          )
-        end
-      end
-    end
+    migration_row(@mapping[entity], migrations, row)
   end
 end
