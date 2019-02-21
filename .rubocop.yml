@@ -1,3 +1,7 @@
 Metrics/LineLength:
   Max: 110 #same as github
   Enabled: true
+Metrics/AbcSize:
+  Max: 25
+Documentation:
+  Enabled: false

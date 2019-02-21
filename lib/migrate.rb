@@ -10,7 +10,7 @@ require 'yaml'
 
 @images_path = '/Users/mico/Downloads/public_html'
 
-article_migrate = {
+@article_migrate = {
   'Title': 'title',
   'SubTitle': 'subtitle',
   'Description': 'introtext',
@@ -43,16 +43,19 @@ article_migrate = {
   'Image': 'logo'
 }
 
-settings = YAML.load_file('settings.yml')
+@settings = YAML.load_file('settings.yml')
 
-@client_from = Mysql2::Client.new(host: settings['from']['host'], username: settings['from']['username'],
-                                  database: settings['from']['database'], password: settings['from']['password'])
-@client_to = Mysql2::Client.new(host: settings['to']['host'], username: settings['to']['username'],
-                                database: settings['to']['database'], password: settings['to']['password'])
+@client_from = Mysql2::Client.new(@settings[@settings['environment']]['from'])
+@client_to = Mysql2::Client.new(@settings[@settings['environment']]['to'])
+
 @dont_escape = [Time, Fixnum]
 # set names 'utf8';
 @client_to.query("SET NAMES 'UTF8'")
 @client_from.query("SET NAMES 'UTF8'")
+
+def test_env?
+  @settings['environment'] == 'test'
+end
 
 def make_migration(mapping, row)
   values = {}
@@ -161,25 +164,26 @@ def create_insert(keys, values)
          values: values.join("', '"))
 end
 
-@client_from.query('SELECT %s FROM Articles' %
-                  article_migrate.keys.join(',')).each do |row|
-  values = make_migration(article_migrate, row)
-  values['state'] = 1
-  author_id = migrate_author(row['Author'])
-  values.delete('author_id')
+def run
+  @client_from.query(('SELECT %s FROM Articles' + (test_env? && ' limit 10' || '')) %
+                    @article_migrate.keys.join(',')).each do |row|
+    values = make_migration(@article_migrate, row)
+    values['state'] = 1
+    author_id = migrate_author(row['Author'])
+    values.delete('author_id')
 
-  article_rubric_id = migrate_rubric(row['Category'], row['Subcategory'])
-  values['article_rubric_id'] = article_rubric_id if article_rubric_id
+    article_rubric_id = migrate_rubric(row['Category'], row['Subcategory'])
+    values['article_rubric_id'] = article_rubric_id if article_rubric_id
 
-  values['newspaper_issue_id'] = migrate_issue(row['Issue']) || nil
+    values['newspaper_issue_id'] = migrate_issue(row['Issue']) || nil
 
-  puts create_insert(values.keys, values.values.map { |v| v.is_a?(String) && v.truncate || v })
-  @client_to.query(create_insert(values.keys, values.values))
-  article_id = @client_to.last_id
+    puts create_insert(values.keys, values.values.map { |v| v.is_a?(String) && v.truncate || v })
+    @client_to.query(create_insert(values.keys, values.values))
+    article_id = @client_to.last_id
 
-  if author_id
-    @client_to.query('INSERT INTO fs_newspaper_article_author (newspaper_article_id, author_id) VALUES (%d, %d)' %
-                     [article_id, author_id])
+    if author_id
+      @client_to.query('INSERT INTO fs_newspaper_article_author (newspaper_article_id, author_id) VALUES (%d, %d)' %
+                      [article_id, author_id])
+    end
   end
-
 end
