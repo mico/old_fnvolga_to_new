@@ -131,7 +131,6 @@ class MigrationRow < GenericMigration
         table_to: migrate_to,
         updates: updates,
         id: last_id)
-      puts query
       @client_to.query(query)
     end
 
@@ -195,7 +194,6 @@ class Migration < GenericMigration
     query = format(('SELECT %<fields>s FROM %<table>s' + (test_env? && ' limit 10' || '')),
                    fields: fields.join(', '),
                    table: @config[:from])
-    puts query
     query
   end
 
