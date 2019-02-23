@@ -40,6 +40,7 @@ GEM
     path_expander (1.0.3)
     public_suffix (3.0.3)
     rainbow (3.0.0)
+    rake (12.3.2)
     reek (4.8.2)
       codeclimate-engine-rb (~> 0.4.0)
       parser (>= 2.5.0.0, < 2.6)
@@ -93,6 +94,7 @@ PLATFORMS
 DEPENDENCIES
   byebug
   mysql2
+  rake
   rspec
   rspec-mocks
   rubycritic
@@ -100,4 +102,4 @@ DEPENDENCIES
   simplecov-console
 
 BUNDLED WITH
-   1.16.1
+   2.0.1
