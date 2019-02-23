@@ -1,6 +1,6 @@
 require 'mysql2'
 require 'byebug'
-require 'CSV'
+require 'csv'
 require 'yaml'
 
 $mappings = {'issue': {}}
