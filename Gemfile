@@ -5,3 +5,5 @@ gem 'byebug'
 gem "rubycritic", require: false
 gem 'rspec'
 gem 'rspec-mocks'
+gem 'simplecov'
+gem 'simplecov-console'
