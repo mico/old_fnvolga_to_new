@@ -16,18 +16,14 @@ Dir['migrations/*yml'].each do |migration|
   @migrations[name] = YAML.load_file(migration)
 end
 
-$settings = YAML.load_file('settings.yml')
 
-$client_from = Mysql2::Client.new($settings[$settings['environment']]['from'])
-$client_to = Mysql2::Client.new($settings[$settings['environment']]['to'])
+$settings = File.exist?('settings.yml') && YAML.load_file('settings.yml') || { 'environment': 'test' }
 
 $dont_escape = [Time, Fixnum]
 # set names 'utf8';
-$client_to.query("SET NAMES 'UTF8'")
-$client_from.query("SET NAMES 'UTF8'")
 
 def test_env?
-  $settings['environment'] == 'test'
+  $settings[:environment] == 'test'
 end
 
 def escape(string)
@@ -154,6 +150,8 @@ class MigrationRow < GenericMigration
 end
 
 class Migration < GenericMigration
+  attr_reader :client_from, :client_to
+
   def initialize(entity, config)
     @entity = entity
     @config = config
@@ -169,6 +167,17 @@ class Migration < GenericMigration
     # add many to many relation to fields
     @config[:fields].keys + relations.select { |_, relation_config| relation_config[:type] == 'manytomany' }
                                      .map(&:first)
+  end
+
+  def client_from
+    client = Mysql2::Client.new($settings[$settings['environment']]['from'])
+    client
+  end
+
+  def client_to
+    client = Mysql2::Client.new($settings[$settings['environment']]['to'])
+    client.query("SET NAMES 'UTF8'")
+    client
   end
 
   def get_data(query)
