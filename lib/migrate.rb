@@ -181,11 +181,14 @@ class Migration < GenericMigration
   end
 
   def update_data(query)
+    $client_to.query(query)
   end
 
-  def migration_row_query(mapping, config, row)
-    migration_row = MigrationRow.new(config, mapping, row)
-    migration_row.get_query
+  def migrate_data(mapping, data)
+    data.map do |row|
+      migration_row = MigrationRow.new(@config, mapping, row)
+      migration_row.get_query
+    end
   end
 
   def make_query
@@ -197,8 +200,9 @@ class Migration < GenericMigration
   end
 
   def run
-    get_data(make_query).each do |row|
-      migration_row_query(@mapping[@entity], @config, row)
+    data = migrate_data(@mapping[@entity], get_data(make_query))
+    data.each do |query|
+      update_data(query)
     end
   end
 end

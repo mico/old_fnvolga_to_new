@@ -1,12 +1,19 @@
 require_relative '../lib/migrate'
 
 RSpec.describe 'migration' do
+  let(:config) { { fields: { Title: 'title' }, from: 'Articles' } }
+  let(:migration) { Migration.new('article', config) }
+  let(:row) { { 'Title': 'just a title' } }
+  let(:result) { "INSERT INTO  (`title`) VALUES ('just a title')" }
+
   it 'should migrate data based on config' do
-    config = { fields: { Title: 'title' }, from: 'Articles' }
-    migration = Migration.new('article', config)
     expect(migration.make_query).to eq('SELECT Title FROM Articles limit 10')
-    row = { 'Title': 'just a title' }
-    expect(migration.migration_row_query({}, config, row))
-      .to eq("INSERT INTO  (`title`) VALUES ('just a title')")
+    expect(migration.migrate_data({}, [row]))
+      .to eq([result])
+  end
+
+  it 'should return same amount of inserts as input data ' do
+    expect(migration.migrate_data({}, [row] * 2))
+      .to eq([result] * 2)
   end
 end
