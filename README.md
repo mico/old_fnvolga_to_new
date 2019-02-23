@@ -15,6 +15,8 @@ Changes could applied to data and to structure.
 ```
 Where entity name is name of yml migration file without .yml
 
+## Configuration
+
 Changes described in migrations/*.yml files
 Example:
 

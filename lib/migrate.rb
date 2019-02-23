@@ -3,11 +3,6 @@ require 'byebug'
 require 'csv'
 require 'yaml'
 
-$mappings = {'issue': {}}
-Dir['mapping/*csv'].each do |mapping|
-  name = mapping.sub('.csv', '').sub('mapping/', '')
-  $mappings[name] = CSV.read(mapping).to_h
-end
 
 @migrations = {}
 
@@ -61,25 +56,45 @@ end
 
 class GenericMigration
   def relations
-    @config['relations'] || []
+    @config[:relations] || {}
   end
 end
 
 class MigrationRow < GenericMigration
   attr_reader :prepare_update_values, :make_update_query
 
-  def initialize(config, mapping, row)
+  def initialize(config, mappings, row)
     @row = row
     @config = config
-    @mapping = mapping
+    @mappings = mappings
   end
 
   def prepare_update_values
-    values = @config[:fields].map { |key, value| [value.to_sym, @row[key.to_sym]] }.to_h
+    values = @config[:fields].map { |key, value| [value, @row[key]] }.to_h
     # eval custom fields
-    @config[:custom_fields].each do |field, code|
-      values[field.to_sym] = code.is_a?(String) && code.gsub(/\#\{(.*?)\}/) { eval($1) } || code
-    end if @config[:custom_fields]
+    if @config.key?(:custom_fields)
+      @config[:custom_fields].each do |field, code|
+        values[field.to_sym] = code.is_a?(String) && code.gsub(/\#\{(.*?)\}/) { eval($1) } || code
+      end
+    end
+
+    # one to many relations
+    relations.each do |relation, params|
+      next unless params[:type] == 'onetomany'
+
+      relation_id = @row[relation]
+      next unless relation_id
+
+      # skip already found relations (if duplicates in migration description)
+      destination_field = @config[:fields][relation]
+      # next if values.key?(destination_field)
+
+      entity = relation.downcase
+      # XXX: only one place @mappings is using
+      values[destination_field] = @mappings[entity][relation_id] && @mappings[entity][relation_id] ||
+                                  migrate_entity(entity, relation_id)
+    end
+
     values
   end
 
@@ -102,17 +117,6 @@ class MigrationRow < GenericMigration
       return result.first['id'] if result.any?
     end
 
-    # one to many relations
-    if relations
-      relations.each do |relation, params|
-        next unless params['type'] == 'onetomany'
-        relation_id = row[relation]
-        next unless relation_id
-        # skip already found relations (if duplicates in migration description)
-        next if values.key?(fields[relation])
-        values[fields[relation]] = migrate_entity(relation.downcase, relation_id)
-      end
-    end
 
     return make_update_query
     @client_to.query(make_update_query)
@@ -193,9 +197,9 @@ class Migration < GenericMigration
     $client_to.query(query)
   end
 
-  def migrate_data(mapping, data)
+  def migrate_data(data)
     data.map do |row|
-      migration_row = MigrationRow.new(@config, mapping, row)
+      migration_row = MigrationRow.new(@config, mappings, row)
       migration_row.get_query
     end
   end
@@ -207,11 +211,16 @@ class Migration < GenericMigration
     query
   end
 
+  def mappings
+    @mappings ||= Dir['mapping/*csv'].map do |mapping|
+      name = mapping.sub('.csv', '').sub('mapping/', '')
+      [name, CSV.read(mapping).to_h]
+    end.to_h || { 'issue': {} }
+  end
+
   def run
-    data = migrate_data(@mapping[@entity], get_data(make_query))
-    data.each do |query|
-      update_data(query)
-    end
+    data = migrate_data(get_data(make_query))
+    update_data(data.join(";\n") + ";\n")
   end
 end
 
