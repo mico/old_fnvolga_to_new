@@ -18,6 +18,7 @@ end
 
 
 $settings = File.exist?('settings.yml') && YAML.load_file('settings.yml') || { 'environment': 'test' }
+$settings.transform_keys!(&:to_sym)
 
 $dont_escape = [Time, Fixnum]
 # set names 'utf8';

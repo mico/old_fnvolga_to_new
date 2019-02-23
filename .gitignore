@@ -2,3 +2,4 @@
 .tags*
 tmp/*
 settings.yml
+coverage/*
