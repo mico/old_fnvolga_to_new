@@ -5,6 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "RSpec",
+            "type": "Ruby",
+            "request": "launch",
+            "program": "/Users/mico/.rbenv/versions/2.2.5/bin/rspec",
+            "args": [
+                "${workspaceRoot}/spec/migrate_spec.rb"
+            ]
+        },
+        {
             "name": "Debug Local File",
             "type": "Ruby",
             "request": "launch",

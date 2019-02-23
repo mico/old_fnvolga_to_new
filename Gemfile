@@ -4,3 +4,4 @@ gem 'byebug'
 # gem 'flay'
 gem "rubycritic", require: false
 gem 'rspec'
+gem 'rspec-mocks'
