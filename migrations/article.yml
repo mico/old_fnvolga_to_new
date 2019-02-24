@@ -19,13 +19,14 @@ from: Articles
 to: fs_newspaper_article
 relations:
   Issue:
-    type: onetomany
+    type: belongs_to
   Subcategory:
-    type: onetomany
+    type: belongs_to
   Category:
-    type: onetomany
+    type: belongs_to
   Author:
-    type: manytomany
+    type: belongs_to
+    convert_to: manytomany
     table: fs_newspaper_article_author
     foreign_id: newspaper_article_id
     primary_key: author_id
