@@ -1,9 +1,7 @@
 class Migration < GenericMigration
-  attr_reader :client_from, :client_to
-
   def initialize(entity, config, entity_id = nil)
     @entity = entity
-    @entity_id = @entity_id
+    @entity_id = entity_id
     @config = config
   end
 
@@ -15,9 +13,9 @@ class Migration < GenericMigration
 
   def relations_with_ids
     get_data.map do |data|
-      relations.map do |relation, _|
-        [relation.downcase, data[relation]]
-      end.to_h
+      break if relations.empty?
+
+      yield(relations.map { |relation, _| [relation.downcase, data[relation]] })
     end
   end
 
@@ -59,7 +57,7 @@ class Migration < GenericMigration
 
   def make_query
     query = format(('SELECT %<fields>s FROM %<table>s' +
-                   (test_env? && ' limit 10' || '') +
+                   (!@entity_id && test_env? && ' limit 10' || '') +
                    (@entity_id && format(' WHERE id = %<id>s', id: @entity_id) || '')),
                    fields: fields.join(', '),
                    table: @config[:from])

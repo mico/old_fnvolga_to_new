@@ -54,6 +54,7 @@ end
 
 def run(entity = 'article')
   migration = Migration.new(entity, @migrations[entity])
+  # TODO: update
   relations_ids = migration.relations_with_ids.map(&:downcase).map do |relation_entity, entity_id|
     Migration.new(relation_entity, @migrations[relation_entity], entity_id)
   end.map(&:run)
