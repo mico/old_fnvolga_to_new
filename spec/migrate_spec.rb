@@ -10,20 +10,53 @@ RSpec.describe 'migration' do
     { 'article' => { fields: { 'Title' => 'title', 'Issue' => 'newspaper_issue_id' },
                      from: 'Articles',
                      to: 'fs_newspaper_article',
-                     relations: { 'Issue' => { type: 'belongs_to' } } },
+                     relations: {
+                       'Issue' => { type: 'belongs_to' },
+                       'Author' => {
+                         type: 'belongs_to',
+                         convert_to: 'manytomany',
+                         table: 'fs_newspaper_article_author',
+                         foreign_id: 'newspaper_article_id',
+                         primary_key: 'author_id'
+                       }
+                     }
+                   },
       'issue' => { fields: { 'TotalNum' => 'number' },
                    from: 'Issues',
-                   to: 'fs_newspaper_issue' }
+                   to: 'fs_newspaper_issue' },
+      'author' => { fields: { 'FirstName' => 'name' },
+                    from: 'Authors',
+                    to: 'fs_author' }
     }
+  end
+  let(:config_with_manytomany_relation) do
+    { 'article' => { fields: { 'Title' => 'title' },
+                     from: 'Articles',
+                     to: 'fs_newspaper_article',
+                     relations: {
+                       'Author' => {
+                         type: 'belongs_to',
+                         convert_to: 'manytomany',
+                         table: 'fs_newspaper_article_author',
+                         foreign_id: 'newspaper_article_id',
+                         primary_key: 'author_id'
+                       }
+                     } },
+      'author' => { fields: { 'FirstName' => 'name' },
+                    from: 'Authors',
+                    to: 'fs_author' } }
   end
 
   let(:migration) { Migration.new('article', config) }
   let(:migration_with_relation) { Migration.new('article', config_with_relation) }
   let(:migration_issue) { Migration.new('issue', config_with_relation, 1) }
+  let(:migration_manytomany) { Migration.new('article', config_with_manytomany_relation) }
 
   let(:row) { { 'Title' => 'just a title' } }
   let(:row_with_relation) { { 'Title' => 'just a title', 'Issue' => 1 } }
+  let(:row_with_author) { { 'Title' => 'just a title', 'author_id' => 1 } }
   let(:issue_row) { { 'TotalNum' => 3 } }
+  let(:author_row) { { 'FirstName' => 'nick' } }
 
   let(:result) { "INSERT INTO fs_newspaper_article (`title`) VALUES ('just a title')" }
   let(:mappings) { { 'issue' => { 1 => 2 } } }
@@ -77,13 +110,26 @@ RSpec.describe 'migration' do
   # end
 
   it 'should return INSERT INTO Issue ... for each INSERT INTO Article for belongs_to relation' do
-    # expect(migration_with_relation).to receive(:get_data).and_return([row_with_relation])
     expect_any_instance_of(Migration).to receive(:get_data).with('SELECT TotalNum FROM Issues WHERE id = 1')
                                                            .and_return([issue_row])
     expect(migration_with_relation).to receive(:update_data)
       .with("INSERT INTO fs_newspaper_issue (`number`) VALUES ('3')").and_return(10)
     expect(migration_with_relation.migrate_data([row_with_relation]))
       .to eq(["INSERT INTO fs_newspaper_article (`title`, `newspaper_issue_id`) VALUES ('just a title', '10')"])
+  end
+
+  it 'should return INSERT INTO Author ... for each INSERT INTO Article and then INSERT INTO Author_Article for manytomany relation' do
+    expect_any_instance_of(Migration).to receive(:get_data).with('SELECT FirstName FROM Authors WHERE id = 1')
+    expect(migration_manytomany).to receive(:update_data)
+      .with("INSERT INTO fs_newspaper_article (`title`) VALUES ('just a title')").and_return(11)
+    expect(migration_manytomany).to receive(:update_data)
+      .with("INSERT INTO fs_author (`name`) VALUES ('nick')").and_return(10)
+    expect(migration_manytomany).to receive(:update_data)
+      .with("INSERT INTO fs_newspaper_article_author (`newspaper_article_id`, `author_id`) VALUES ('11', '10')")
+    migration_manytomany.migrate_data([row_with_author])
+
+    # after article insert
+    # INSERT INTO fs_newspaper_article_author (`number`) VALUES ('3')
   end
 
   # it 'should substitute new id for relation entity'

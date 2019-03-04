@@ -5,12 +5,6 @@ class Migration < GenericMigration
     @config = config
   end
 
-  def manytomany_relations
-    relations.select do |_, params|
-      params[:type] == 'manytomany'
-    end
-  end
-
   def relations_with_ids
     get_data(make_query).map do |data|
       break if relations.empty?
@@ -46,6 +40,7 @@ class Migration < GenericMigration
 
   def update_data(query)
     $client_to.query(query)
+    $client_to.last_id
   end
 
   def migrate_entity(relation, id)
@@ -53,12 +48,21 @@ class Migration < GenericMigration
   end
 
   def migrate_data(data)
-    data.map do |row|
+    updated_entities_ids = {}
+    data.each do |row|
       migration_row = MigrationRow.new(@config[@entity], mappings, row)
       migration_row.make_relation_queries do |relation, id|
-        migrate_entity(relation, id)
+        updated_entities_ids[relation.downcase] = migrate_entity(relation, id)
       end
-      migration_row.get_query
+      updated_entities_ids[@entity] = update_data(migration_row.get_query)
+      update_data(migration_row.manytomany_query(updated_entities_ids))
+    end
+  end
+
+
+  def real_migrate(data)
+    migrate_data(data) do |query|
+      id = update_data(query)
     end
   end
 

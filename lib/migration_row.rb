@@ -87,20 +87,19 @@ class MigrationRow < GenericMigration
     end
 
     # many to many relations migrate
+  end
+
+  def manytomany_query(entities_ids)
     manytomany_relations.each do |relation, params|
       # manytomany
-      entity_id = migrate_entity(relation.downcase, row[relation])
-      next unless entity_id
-      @client_to.query(
-        format('INSERT INTO %<table>s (%<foreign_id_name>s, %<primary_id_name>s) VALUES (%<foreign_id>d, %<primary_id>d)',
-                table: params['table'],
-                foreign_id_name: params['foreign_id'],
-                primary_id_name: params['primary_id'],
-                foreign_id: last_id,
-                primary_id: entity_id)
-      )
+      # entity_id = migrate_entity(relation.downcase, row[relation])
+      # next unless entity_id
+      format('INSERT INTO %<table>s (%<foreign_id_name>s, %<primary_id_name>s) VALUES (%<foreign_id>d, %<primary_id>d)',
+             table: params['table'],
+             foreign_id_name: params['foreign_id'],
+             primary_id_name: params['primary_id'],
+             foreign_id: foreign_id,
+             primary_id: entities_ids[relation.downcase])
     end
-
-    last_id
   end
 end
