@@ -3,3 +3,4 @@
 tmp/*
 settings.yml
 coverage/*
+.DS_Store

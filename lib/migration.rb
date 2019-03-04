@@ -12,7 +12,7 @@ class Migration < GenericMigration
   end
 
   def relations_with_ids
-    get_data.map do |data|
+    get_data(make_query).map do |data|
       break if relations.empty?
 
       yield(relations.map { |relation, _| [relation.downcase, data[relation]] })
@@ -21,8 +21,8 @@ class Migration < GenericMigration
 
   def fields
     # add many to many relation to fields
-    @config[:fields].keys + relations.select { |_, relation_config| relation_config[:type] == 'manytomany' }
-                                     .map(&:first)
+    @config[@entity][:fields].keys + relations.select { |_, relation_config| relation_config[:type] == 'manytomany' }
+                                              .map(&:first)
   end
 
   def client_from
@@ -36,8 +36,8 @@ class Migration < GenericMigration
     client
   end
 
-  def get_data
-    @get_data ||= $client_from.query(make_query)
+  def get_data(query)
+    @get_data ||= $client_from.query(query)
   end
 
   def get_data_from_destination(query)
@@ -48,9 +48,16 @@ class Migration < GenericMigration
     $client_to.query(query)
   end
 
+  def migrate_entity(relation, id)
+    update_data(Migration.new(relation.downcase, @config, id).queries.first)
+  end
+
   def migrate_data(data)
     data.map do |row|
-      migration_row = MigrationRow.new(@config, mappings, row)
+      migration_row = MigrationRow.new(@config[@entity], mappings, row)
+      migration_row.make_relation_queries do |relation, id|
+        migrate_entity(relation, id)
+      end
       migration_row.get_query
     end
   end
@@ -60,7 +67,7 @@ class Migration < GenericMigration
                    (!@entity_id && test_env? && ' limit 10' || '') +
                    (@entity_id && format(' WHERE id = %<id>s', id: @entity_id) || '')),
                    fields: fields.join(', '),
-                   table: @config[:from])
+                   table: @config[@entity][:from])
     query
   end
 
@@ -69,6 +76,10 @@ class Migration < GenericMigration
       name = mapping.sub('.csv', '').sub('mapping/', '')
       [name, CSV.read(mapping).to_h]
     end.to_h || { 'issue': {} }
+  end
+
+  def queries
+    migrate_data(get_data(make_query))
   end
 
   def run
