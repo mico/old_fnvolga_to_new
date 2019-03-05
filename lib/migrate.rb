@@ -31,6 +31,7 @@ def test_env?
 end
 
 def escape(string)
+  return '' if string.nil?
   @dont_escape.include?(string.class) && string || @client_from.escape(string)
 end
 
@@ -55,8 +56,10 @@ def migration_row(mapping, migrate_map, row_from)
       values[value.to_sym] = row_from[key.to_s]
     end
   end
-  migrate_map['custom_fields'].each do |field, code|
-    values[field.to_sym] = code.is_a?(String) && code.gsub(/\#\{(.*?)\}/) { eval($1) } || code
+  if migrate_map['custom_fields']
+    migrate_map['custom_fields'].each do |field, code|
+      values[field.to_sym] = code.is_a?(String) && code.gsub(/\#\{(.*?)\}/) { eval($1) } || code
+    end
   end
 
   relations = migrate_map['relations']
