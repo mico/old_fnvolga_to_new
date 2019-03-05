@@ -71,7 +71,7 @@ def migration_row(mapping, migrate_map, row_from)
       relation_id = row_from[relation]
       next unless relation_id
       # skip already found relations (if duplicates in migration description)
-      next if values.key?(fields[relation])
+      next if values.key?(fields[relation].to_sym)
       values[fields[relation].to_sym] = migrate_entity(relation.downcase, relation_id)
     end
   end
