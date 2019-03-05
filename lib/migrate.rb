@@ -1,6 +1,6 @@
 require 'mysql2'
 require 'byebug'
-require 'CSV'
+require 'csv'
 require 'yaml'
 
 @mappings = { 'issue' => {} }
@@ -124,7 +124,7 @@ def migration_row(mapping, migrate_map, row_from)
 end
 
 def migration(mapping, migrate_map, id)
-  return mapping[id] if mapping.key?(id)
+  return mapping[id.to_s] if mapping.key?(id.to_s)
   fields = get_fields(migrate_map)
   res = @client_from.query(
     format('SELECT %<keys>s FROM `%<table>s` WHERE id = %<id>d',
