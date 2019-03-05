@@ -15,6 +15,8 @@ fields:
 custom_fields:
   state: 1
   logo: "#{row_from['Picture'].sub('images/', '')}"
+  introtext: "#{row_from['Description'].sub('<p>', '').sub('</p>', '<br/>')}"
+  fulltext: "<p class='header'>#{row_from['Description']}</p>#{row_from['Text']}"
 from: Articles
 to: fs_newspaper_article
 relations:

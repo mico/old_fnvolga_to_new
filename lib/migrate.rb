@@ -76,7 +76,7 @@ def migration_row(mapping, migrate_map, row_from)
   query = format("INSERT INTO %<table_to>s (`%<keys>s`) VALUES ('%<values>s')",
                  table_to: migrate_to,
                  keys: values.keys.join('`, `'),
-                 values: values.values.join("', '"))
+                 values: values.values.map { |v| escape(v) }.join("', '"))
   query_print = format("INSERT INTO %<table_to>s (`%<keys>s`) VALUES ('%<values>s')",
                  table_to: migrate_to,
                  keys: values.keys.join('`, `'),
