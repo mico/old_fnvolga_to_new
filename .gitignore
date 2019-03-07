@@ -3,3 +3,4 @@ tmp/*
 .tags*
 .DS_Store
 .byebug_history
+settings.yml
