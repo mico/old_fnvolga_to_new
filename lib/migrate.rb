@@ -48,8 +48,11 @@ def migration_row(mapping, migrate_map, row_from)
   end
 
   values = {}
+  relations = migrate_map['relations']
+
   fields = migrate_map['fields']
   fields.each do |key, value|
+    next if relations && relations.has_key?(key)
     if value.is_a?(Array)
       value.each { |v| values[v.to_sym] = row_from[key.to_s] }
     else
@@ -62,7 +65,6 @@ def migration_row(mapping, migrate_map, row_from)
     end
   end
 
-  relations = migrate_map['relations']
 
   # one to many relations
   if relations
@@ -139,7 +141,7 @@ end
 
 def migrate_entity(entity, id)
   last_id = migration(@mappings[entity], @migrations[entity], id)
-  @mappings[entity][id] = last_id
+  @mappings[entity][id.to_s] = last_id
   last_id
 end
 
@@ -167,7 +169,7 @@ end
 
 def run(entity = 'article')
   migrations = @migrations[entity]
-  query = format(('SELECT %<fields>s FROM %<table>s' + (test_env? && ' limit 10' || '')),
+  query = format(('SELECT %<fields>s FROM %<table>s' + (test_env? && ' limit 1000' || '')),
                  fields: get_fields(migrations).keys.join(', '),
                  table: migrations['from'])
   puts query
