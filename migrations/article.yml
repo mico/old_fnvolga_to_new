@@ -17,6 +17,9 @@ custom_fields:
   logo: "#{row_from['Picture'].sub('images/', '')}"
   introtext: "#{row_from['Description'].sub('<p>', '').sub('</p>', '<br/>')}"
   fulltext: "<p class='header'>#{values[:introtext]}</p>#{row_from['Text'].strip.start_with?('<p') && row_from['Text'] || ('<p>' + row_from['Text']) }"
+  published: "#{values[:published] + 4*60*60}"
+  created: "#{values[:created] + 4*60*60}"
+  modified: "#{values[:modified] + 4*60*60}"
 from: Articles
 to: fs_newspaper_article
 relations:
