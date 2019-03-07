@@ -6,6 +6,7 @@ custom_fields:
   number: "#{row_from['YearNum']} (#{row_from['TotalNum']})"
   state: 1
   logo: "#{row_from['TotalNum']}_#{row_from['YearNum']}.jpg"
+  published: "#{values[:published] + 4*60*60}"
 from: Issues
 to: fs_newspaper_issue
 update_after_insert:
