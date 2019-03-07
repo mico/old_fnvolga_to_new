@@ -65,7 +65,6 @@ def migration_row(mapping, migrate_map, row_from)
     end
   end
 
-
   # one to many relations
   if relations
     relations.each do |relation, params|
@@ -73,8 +72,8 @@ def migration_row(mapping, migrate_map, row_from)
       relation_id = row_from[relation]
       next unless relation_id
       # skip already found relations (if duplicates in migration description)
-      next if values.key?(fields[relation].to_sym)
-      values[fields[relation].to_sym] = migrate_entity(relation.downcase, relation_id)
+      next if values.key?(fields[relation].to_sym) && !values[fields[relation].to_sym].nil?
+      values[fields[relation].to_sym] = migrate_entity(relation.downcase, relation_id, params.has_key?('dontcreate'))
     end
   end
 
@@ -126,7 +125,6 @@ def migration_row(mapping, migrate_map, row_from)
 end
 
 def migration(mapping, migrate_map, id)
-  return mapping[id.to_s] if mapping.key?(id.to_s)
   fields = get_fields(migrate_map)
   res = @client_from.query(
     format('SELECT %<keys>s FROM `%<table>s` WHERE id = %<id>d',
@@ -139,7 +137,9 @@ def migration(mapping, migrate_map, id)
   migration_row(mapping, migrate_map, res.first)
 end
 
-def migrate_entity(entity, id)
+def migrate_entity(entity, id, dontcreate = false)
+  return @mappings[entity][id.to_s] if @mappings[entity].key?(id.to_s)
+  return if dontcreate
   last_id = migration(@mappings[entity], @migrations[entity], id)
   @mappings[entity][id.to_s] = last_id
   last_id
@@ -170,7 +170,7 @@ end
 def run(entity = 'article')
   migrations = @migrations[entity]
   query = format(('SELECT %<fields>s FROM %<table>s' + (test_env? && ' limit 1000' || '')),
-                 fields: get_fields(migrations).keys.join(', '),
+                 fields: (["ID"] + get_fields(migrations).keys).join(', '),
                  table: migrations['from'])
   puts query
   @client_from.query(query).each do |row|

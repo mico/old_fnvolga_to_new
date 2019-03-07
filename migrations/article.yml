@@ -24,6 +24,7 @@ relations:
     type: onetomany
   Subcategory:
     type: onetomany
+    dontcreate: true
   Category:
     type: onetomany
   Author:

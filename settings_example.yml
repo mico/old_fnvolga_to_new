@@ -1,10 +1,13 @@
-from:
-  host: 127.0.0.1
-  database: old_fnvolga
-  username: root
-  password: ''
-to:
-  host: 1.1.1.1
-  database: fn_volga_test
-  username: mico
-  password: 'yourpassword'
+environment: production
+
+production:
+  from:
+    host: 127.0.0.1
+    database: old_fnvolga
+    username: root
+    password: ''
+  to:
+    host: 1.1.1.1
+    database: fn_volga_test
+    username: mico
+    password: 'yourpassword'
